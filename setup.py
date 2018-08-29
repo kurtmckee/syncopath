@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from __future__ import unicode_literals
 
 import os
+import sys
 
 from setuptools import setup
 
@@ -14,9 +15,9 @@ EMAIL = 'contactme@kurtmckee.org'
 AUTHOR = 'Kurt McKee'
 
 # What packages are required for this module to be executed?
-REQUIRED = [
-    'scandir',
-]
+REQUIRED = []
+if sys.version_info[:2] < (3, 5):
+    REQUIRED.append('scandir')
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -43,6 +44,7 @@ setup(
         'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
         'Programming Language :: Python',
         'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: Implementation :: CPython',
     ],
 )

@@ -11,9 +11,16 @@ just to calculate the differences between the directories.
 News
 ====
 
-0.2
-    *   Fix problems caused by importing ``syncopath`` in :file:`setup.py`.
+..  rubric:: Next
+
+*   Support Python 3.7.
 
 
-0.1
-    *   Initial release
+..  rubric:: 0.2
+
+*   Fix problems caused by importing ``syncopath`` in :file:`setup.py`.
+
+
+..  rubric:: 0.1
+
+*   Initial release
