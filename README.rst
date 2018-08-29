@@ -11,7 +11,7 @@ just to calculate the differences between the directories.
 News
 ====
 
-..  rubric:: Next
+..  rubric:: 0.3
 
 *   Support Python 3.7.
 
