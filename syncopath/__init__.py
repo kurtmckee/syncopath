@@ -1,5 +1,5 @@
 # syncopath - Synchronize the contents of one directory to another.
-# Copyright (C) 2017 Kurt McKee <contactme@kurtmckee.org>
+# Copyright (C) 2017-2018 Kurt McKee <contactme@kurtmckee.org>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,11 +19,33 @@ from __future__ import unicode_literals
 
 import logging
 import os
-import Queue
 import stat
 import threading
 
-import scandir
+try:
+    import queue
+except ImportError:
+    # noinspection PyPep8Naming
+    import Queue as queue
+
+# Avoid NameError exceptions later.
+try:
+    ModuleNotFoundError
+except NameError:
+    ModuleNotFoundError = ImportError
+
+try:
+    # Python 2.7 requires scandir.
+    import scandir
+except ModuleNotFoundError:
+    # If scandir is not installed, assume that this is Python >= 3.5.
+    _listdir = os.listdir
+    _scandir = os.scandir
+    _stat = os.stat
+else:
+    _listdir = scandir.listdir
+    _scandir = scandir.scandir
+    _stat = scandir.stat
 
 
 __all__ = ['sync']
@@ -40,20 +62,17 @@ BUFFER_SIZE = 128 * 1024  # 128KB
 # at any given moment. This prevents runaway thread creation.
 count = 4
 thread_manager = threading.Semaphore(count)
-io_queue = Queue.Queue(count)
+io_queue = queue.Queue(count)
 
 _isdir = stat.S_ISDIR
 _isreg = stat.S_ISREG
 _join = os.path.join
-_listdir = scandir.listdir
 _normpath = os.path.normpath
 _remove = os.remove
-_scandir = scandir.scandir
 _st_atime = stat.ST_ATIME
 _st_mode = stat.ST_MODE
 _st_mtime = stat.ST_MTIME
 _st_size = stat.ST_SIZE
-_stat = scandir.stat
 _Thread = threading.Thread
 
 
@@ -66,10 +85,10 @@ def plan(left, right):
     left = _normpath(left)
     right = _normpath(right)
 
-    results = Queue.Queue()
-    directories = Queue.Queue()
+    results = queue.Queue()
+    directories = queue.Queue()
     directories.put('')
-    consolidated_results = Queue.Queue()
+    consolidated_results = queue.Queue()
     consolidated_results.put({
         'rmdir': set(),
         'rmfile': set(),
@@ -152,8 +171,8 @@ def listdir(results, path):
 
 def _consolidate_results(results, consolidated_results):
     """
-    :type results: Queue.Queue
-    :type consolidated_results: Queue.Queue
+    :type results: queue.Queue
+    :type consolidated_results: queue.Queue
     """
 
     plans = consolidated_results.get()
@@ -175,8 +194,8 @@ def _compare(left, right, directories, results):
     """
     :type left: str
     :type right: str
-    :type directories: Queue.Queue
-    :type results: Queue.Queue
+    :type directories: queue.Queue
+    :type results: queue.Queue
     :return:
     """
 
@@ -196,8 +215,8 @@ def _compare_directory(left, right, relative_path, directories, results):
     :type left: str
     :type right: str
     :type relative_path: str
-    :type directories: Queue.Queue
-    :type results: Queue.Queue
+    :type directories: queue.Queue
+    :type results: queue.Queue
     """
 
     plans = {
@@ -209,12 +228,12 @@ def _compare_directory(left, right, relative_path, directories, results):
     }
 
     left_path = _join(left, relative_path)
-    left_result = Queue.Queue(maxsize=1)
+    left_result = queue.Queue(maxsize=1)
     left_thread = _Thread(target=listdir, args=(left_result, left_path))
     left_thread.start()
 
     right_path = _join(right, relative_path)
-    right_result = Queue.Queue(maxsize=1)
+    right_result = queue.Queue(maxsize=1)
     right_thread = _Thread(target=listdir, args=(right_result, right_path))
     right_thread.start()
 
@@ -326,13 +345,13 @@ def copy(left, right, path, stats):
     :type stats: list
     """
 
-    blobs = Queue.Queue(8)
+    blobs = queue.Queue(8)
 
     # Open the left and right files.
-    reader_queue = Queue.Queue(maxsize=1)
+    reader_queue = queue.Queue(maxsize=1)
     get_reader_thread = _Thread(target=open_file, args=[_join(left, path), 'rb', reader_queue])
     get_reader_thread.start()
-    writer_queue = Queue.Queue(maxsize=1)
+    writer_queue = queue.Queue(maxsize=1)
     get_writer_thread = _Thread(target=open_file, args=[_join(right, path), 'wb', writer_queue])
     get_writer_thread.start()
     src = reader_queue.get()
@@ -415,7 +434,7 @@ def open_file(path, mode, pipe):
 
     :param str path: The path to the file.
     :param str mode: The mode to open the file with.
-    :param Queue.Queue pipe: The open file or an error will be put in the pipe.
+    :param queue.Queue pipe: The open file or an error will be put in the pipe.
     """
 
     try:
