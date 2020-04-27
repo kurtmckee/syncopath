@@ -1,5 +1,5 @@
 # syncopath - Synchronize the contents of one directory to another.
-# Copyright (C) 2017-2018 Kurt McKee <contactme@kurtmckee.org>
+# Copyright (C) 2017-2020 Kurt McKee <contactme@kurtmckee.org>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -14,43 +14,19 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from __future__ import absolute_import
-from __future__ import unicode_literals
-
 import logging
 import os
+import queue
 import stat
 import threading
 
-try:
-    import queue
-except ImportError:
-    # noinspection PyPep8Naming
-    import Queue as queue
+from .__version__ import __version__
 
-# Avoid NameError exceptions later.
-try:
-    ModuleNotFoundError
-except NameError:
-    ModuleNotFoundError = ImportError
-
-try:
-    # Python 2.7 requires scandir.
-    import scandir
-except ModuleNotFoundError:
-    # If scandir is not installed, assume that this is Python >= 3.5.
-    _listdir = os.listdir
-    _scandir = os.scandir
-    _stat = os.stat
-else:
-    _listdir = scandir.listdir
-    _scandir = scandir.scandir
-    _stat = scandir.stat
-
+_listdir = os.listdir
+_scandir = os.scandir
+_stat = os.stat
 
 __all__ = ['sync']
-
-from .__version__ import __version__
 
 
 log = logging.getLogger(__name__)
@@ -68,6 +44,7 @@ _isdir = stat.S_ISDIR
 _isreg = stat.S_ISREG
 _join = os.path.join
 _normpath = os.path.normpath
+_normcase = os.path.normcase
 _remove = os.remove
 _st_atime = stat.ST_ATIME
 _st_mode = stat.ST_MODE
@@ -82,8 +59,8 @@ def sync(left, right):
 
 
 def plan(left, right):
-    left = _normpath(left)
-    right = _normpath(right)
+    left = _normcase(_normpath(left))
+    right = _normcase(_normpath(right))
 
     results = queue.Queue()
     directories = queue.Queue()
@@ -242,21 +219,19 @@ def _compare_directory(left, right, relative_path, directories, results):
 
     # scandir.DirEntry supports hashing but not equality comparisons
     # so we must use the .name attribute for equality comparisons.
-    left_listing = {i.name: i for i in left_result.get()}
-    left_set = set(left_listing.keys())
+    left_listing = {_normcase(i.name): i for i in left_result.get()}
     left_result.task_done()
     left_result.join()
-    right_listing = {i.name: i for i in right_result.get()}
-    right_set = set(right_listing.keys())
+    right_listing = {_normcase(i.name): i for i in right_result.get()}
     right_result.task_done()
     right_result.join()
 
     # Case 1: The file/directory only exists on the left.
-    for name in left_set.difference(right_set):
-        path = _join(relative_path, name)
+    for name in left_listing.keys() - right_listing.keys():
+        left_path = _join(relative_path, left_listing[name].name)
         if left_listing[name].is_dir():
-            plans['mkdir'].add(path)
-            directories.put(path)
+            directories.put(left_path)
+            plans['mkdir'].add(left_path)
         else:
             # stat() the file in a separate thread.
             thread = _Thread(target=left_listing[name].stat)
@@ -265,27 +240,28 @@ def _compare_directory(left, right, relative_path, directories, results):
 
             # The stat() call below was cached above by scandir.DirEntry.
             left_stat = left_listing[name].stat()
-            plans['copy'].add((path, left_stat))
+            plans['copy'].add((left_path, left_stat))
 
     # Case 2: The file/directory only exists on the right.
-    for name in right_set.difference(left_set):
-        path = _join(relative_path, name)
+    for name in right_listing.keys() - left_listing.keys():
+        right_path = _join(relative_path, right_listing[name].name)
         if right_listing[name].is_dir():
-            plans['rmdir'].add(path)
-            directories.put(path)
+            directories.put(right_path)
+            plans['rmdir'].add(right_path)
         else:
-            plans['rmfile'].add(path)
+            plans['rmfile'].add(right_path)
 
     # Case 3: The path exists on both the left and right sides.
-    for name in left_set.intersection(right_set):
-        path = _join(relative_path, name)
+    for name in left_listing.keys() & right_listing.keys():
+        left_path = _join(relative_path, left_listing[name].name)
+        right_path = _join(relative_path, right_listing[name].name)
 
         # Case 3.1: The left side is a directory.
-        if left_listing[name].is_dir() and right_listing[name].is_dir():
-            directories.put(path)
-        elif left_listing[name].is_dir() and right_listing[name].is_file():
-            plans['rmfile'].add(path)
-            directories.put(path)
+        if left_listing[name].is_dir():
+            directories.put(left_path)
+            # If the right side is a file it must be removed.
+            if right_listing[name].is_file():
+                plans['rmfile'].add(right_path)
 
         # Case 3.2: The left side is a file.
         elif left_listing[name].is_file():
@@ -300,9 +276,9 @@ def _compare_directory(left, right, relative_path, directories, results):
             # If the right side is a directory, it must be recursively removed
             # and the file on the left side must be copied to the right side.
             if right_listing[name].is_dir():
-                plans['rmdir'].add(path)
-                directories.put(path)
-                plans['copy'].add((path, left_stat))
+                directories.put(right_path)
+                plans['rmdir'].add(right_path)
+                plans['copy'].add((left_path, left_stat))
 
             # If the right side is a file, its size and attributes must match
             # the size and attributes of the file on the left side.
@@ -316,10 +292,10 @@ def _compare_directory(left, right, relative_path, directories, results):
 
                 # If the file sizes differ, copy the file.
                 if left_stat[_st_size] != right_stat[_st_size]:
-                    plans['copy'].add((path, left_stat))
-                # If the file modification times differ, copy the file
+                    plans['copy'].add((left_path, left_stat))
+                # If the file modification times differ, copy the file.
                 if left_stat[_st_mtime] != right_stat[_st_mtime]:
-                    plans['copy'].add((path, left_stat))
+                    plans['copy'].add((left_path, left_stat))
 
     results.put(plans)
     directories.task_done()

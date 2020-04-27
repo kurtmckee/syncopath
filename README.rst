@@ -11,6 +11,12 @@ just to calculate the differences between the directories.
 News
 ====
 
+..  rubric:: 0.4
+
+*   Remove Python 2.7 support.
+*   Prevent a crash caused by capitalization differences.
+
+
 ..  rubric:: 0.3
 
 *   Support Python 3.7.
