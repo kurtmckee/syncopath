@@ -1,5 +1,5 @@
 # syncopath - Synchronize the contents of one directory to another.
-# Copyright (C) 2017-2018 Kurt McKee <contactme@kurtmckee.org>
+# Copyright (C) 2017-2020 Kurt McKee <contactme@kurtmckee.org>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -14,43 +14,19 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from __future__ import absolute_import
-from __future__ import unicode_literals
-
 import logging
 import os
+import queue
 import stat
 import threading
 
-try:
-    import queue
-except ImportError:
-    # noinspection PyPep8Naming
-    import Queue as queue
+from .__version__ import __version__
 
-# Avoid NameError exceptions later.
-try:
-    ModuleNotFoundError
-except NameError:
-    ModuleNotFoundError = ImportError
-
-try:
-    # Python 2.7 requires scandir.
-    import scandir
-except ModuleNotFoundError:
-    # If scandir is not installed, assume that this is Python >= 3.5.
-    _listdir = os.listdir
-    _scandir = os.scandir
-    _stat = os.stat
-else:
-    _listdir = scandir.listdir
-    _scandir = scandir.scandir
-    _stat = scandir.stat
-
+_listdir = os.listdir
+_scandir = os.scandir
+_stat = os.stat
 
 __all__ = ['sync']
-
-from .__version__ import __version__
 
 
 log = logging.getLogger(__name__)
