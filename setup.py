@@ -1,10 +1,6 @@
-from __future__ import absolute_import
-from __future__ import unicode_literals
-
 import os
-import sys
 
-from setuptools import setup
+import setuptools
 
 
 # Package meta-data.
@@ -16,8 +12,6 @@ AUTHOR = 'Kurt McKee'
 
 # What packages are required for this module to be executed?
 REQUIRED = []
-if sys.version_info[:2] < (3, 5):
-    REQUIRED.append('scandir')
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -28,7 +22,7 @@ with open(os.path.join(here, NAME, '__version__.py'), 'rb') as f:
 
 VERSION = blob.split('=', 1)[-1].strip().strip('\'"')
 
-setup(
+setuptools.setup(
     name=NAME,
     version=VERSION,
     description=DESCRIPTION,
@@ -43,7 +37,6 @@ setup(
     classifiers=[
         'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: Implementation :: CPython',
     ],
